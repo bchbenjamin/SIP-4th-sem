@@ -1,0 +1,30 @@
+{
+  "tier1_labels": [
+    "person",
+    "dog",
+    "cat",
+    "horse",
+    "cow",
+    "sheep",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe"
+  ],
+  "tier2_labels": [
+    "car",
+    "motorcycle",
+    "bus",
+    "truck",
+    "train"
+  ],
+  "min_confidence": 0.45,
+  "cooldown_seconds": 8,
+  "deterrence": {
+    "mode": "siren",
+    "siren_file": "assets/siren.wav"
+  },
+  "alert": {
+    "webhook_url": ""
+  }
+}
