@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import base64
 import json
+import platform
 import time
 
 import cv2
@@ -42,6 +43,11 @@ def open_camera(index: int, backend: str) -> cv2.VideoCapture:
     elif backend == "msmf":
         cap = cv2.VideoCapture(index, cv2.CAP_MSMF)
     else:
+        if platform.system() == "Windows":
+            cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+            if cap.isOpened():
+                return cap
+            cap.release()
         cap = cv2.VideoCapture(index)
     return cap
 
