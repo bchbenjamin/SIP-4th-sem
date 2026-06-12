@@ -64,14 +64,25 @@ To locate the Raspberry Pi and establish the connection, we executed the followi
 Follow these steps to get all services up and running.
 
 ### Step 1: Start the Raspberry Pi Edge Server
-On the **Raspberry Pi 5** (via SSH or serial console):
-```bash
-# Start the server in the background
-nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
 
-# Monitor logs
-tail -f ~/edge-ai/pi/server.log
-```
+> [!IMPORTANT]
+> Do NOT run the `nohup` or `tail` commands directly in your Laptop's Windows PowerShell terminal. They are Linux commands and must be run inside the Raspberry Pi SSH terminal session.
+
+1. **Connect to the Raspberry Pi over SSH:**
+   Open a PowerShell window on your **Laptop** and run:
+   ```powershell
+   ssh benjamin@10.253.13.25
+   ```
+   *(Enter password `3318` when prompted)*
+
+2. **Run the edge server (inside the Raspberry Pi SSH terminal session):**
+   ```bash
+   # Start the server in the background
+   nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
+
+   # Monitor logs
+   tail -f ~/edge-ai/pi/server.log
+   ```
 The server will start listening on port `8765` for image ingestion and port `8766` for dashboard broadcasting.
 
 ### Step 2: Start the Next.js Dashboard

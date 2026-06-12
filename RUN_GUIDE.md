@@ -15,20 +15,30 @@ This document lists the exact commands to start, monitor, and stop the component
 To run the full prototype demo, start the components in the following order:
 
 ### 1. Start the Raspberry Pi Edge Server
-Run these commands on the **Raspberry Pi** (via SSH or Serial connection) to launch the YOLOv8-powered edge detection server:
 
-* **Command to run in the background (using nohup):**
-  ```bash
-  nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
-  ```
-* **Command to verify it is running:**
-  ```bash
-  ps aux | grep edge_server.py
-  ```
-* **Command to watch the logs in real-time:**
-  ```bash
-  tail -f ~/edge-ai/pi/server.log
-  ```
+> [!IMPORTANT]
+> Do NOT run the `nohup` or `tail` commands directly in your Laptop's Windows PowerShell terminal. They are Linux commands and must be run inside the Raspberry Pi SSH terminal session.
+
+1. **Connect to the Raspberry Pi over SSH:**
+   Open a PowerShell window on your **Laptop** and run:
+   ```powershell
+   ssh benjamin@10.253.13.25
+   ```
+   *(Enter password `3318` when prompted)*
+
+2. **Run the edge server (inside the SSH session):**
+   * **Command to run in the background (using nohup):**
+     ```bash
+     nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
+     ```
+   * **Command to verify it is running:**
+     ```bash
+     ps aux | grep edge_server.py
+     ```
+   * **Command to watch the logs in real-time:**
+     ```bash
+     tail -f ~/edge-ai/pi/server.log
+     ```
 
 ---
 
