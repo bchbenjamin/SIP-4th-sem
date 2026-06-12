@@ -71,9 +71,9 @@ Follow these steps to get all services up and running.
 1. **Connect to the Raspberry Pi over SSH:**
    Open a PowerShell window on your **Laptop** and run:
    ```powershell
-   ssh benjamin@10.253.13.25
+   ssh $USERNAME$@$IP_ADDRESS$
    ```
-   *(Enter password `3318` when prompted)*
+   *(Enter $password$ when prompted)*
 
 2. **Run the edge server (inside the Raspberry Pi SSH terminal session):**
    ```bash
