@@ -1,8 +1,13 @@
-# Execution Guide
+# AI-Powered Street Safety Device Network
 
-This guide runs the AI-Powered Street Safety Device Network proof-of-concept across the laptop sensor node, the Raspberry Pi 5 edge core, and the municipal control room dashboard.
+This repository contains the prototype implementation of the **AI-Powered Street Safety Device Network** (ASIP ASIP_127 / 24UTAI13), developed for Atria Institute of Technology, Bengaluru.
 
-## Architecture Overview
+The network integrates a Laptop (acting as a visual sensor node & browser dashboard) with a Raspberry Pi 5 (acting as the Edge Compute Core running YOLOv8 detection and threat tiering).
+
+---
+
+## 📐 Architecture Overview
+
 ```mermaid
 flowchart LR
   L[Laptop Sensor Node\nWebcam/Mic Capture] -->|WebSocket JPEG Frames| P[Pi 5 Edge Core\nYOLOv8 + Tiering]
@@ -11,70 +16,103 @@ flowchart LR
   P -->|Tier 2 Alerts\nSecure API POST| T2[Police/Emergency Services]
 ```
 
-## Environment Setup (Laptop)
+---
 
-### Python Sensor Node
-```powershell
-cd "i:\My Drive\SIP\Prototype"
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r laptop\requirements.txt
-```
-These commands create an isolated Python environment and install the capture/stream dependencies from requirements.txt, keeping the Windows system Python clean.
+## 🛠️ Integration Walkthrough
 
-### Next.js Dashboard
-```powershell
-cd "i:\My Drive\SIP\Prototype\dashboard"
-npm install
-Copy-Item .env.example .env.local
-```
-`npm install` pulls the dashboard dependencies defined in package.json. The env copy step prepares a local configuration file; edit it to point to the Pi WebSocket IP before running the dashboard.
+We have successfully migrated the prototype code back to the **`main` branch** (following the recovery of the Raspberry Pi 5 hardware) and established active communication between the laptop and the Pi edge core.
 
-## Environment Setup (Pi 5)
+### 1. Network & Connection Discovery
+- **Active Subnet:** The laptop and Raspberry Pi are connected to the same Wi-Fi network under the `10.253.13.x` subnet.
+- **Pi Hostname:** `raspberrypi.local`
+- **Pi IP Address:** `10.253.13.25`
+- **Credentials Configured:** Located in the gitignored [.env](.env) file:
+  - `IP_ADDRESS=<Raspberry_Pi_IP>` (e.g. `10.253.13.25`)
+  - `USERNAME=<Pi_Username>`
+  - `PASSWORD=<Pi_Password>`
 
-### OS Prerequisites
-```bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip libopenblas-dev libatlas-base-dev libgl1
-```
-These packages provide Python tooling and native math/graphics libraries needed by OpenCV and YOLOv8.
-
-### Python Environment and Dependencies
-```bash
-mkdir -p ~/edge-ai
-# Copy the /pi folder from the laptop project into ~/edge-ai
-cd ~/edge-ai/pi
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-The venv keeps Pi dependencies isolated, and requirements.txt installs OpenCV, Ultralytics YOLOv8, WebSockets, and alert dispatch tools.
-
-### Threat Policy Configuration
-Review and adjust tiers in config.json. Tier 1 triggers local deterrence, Tier 2 triggers immediate alert escalation. If you need alert forwarding, set `ALERT_WEBHOOK_URL` in a local env file or export it before running the server.
-
-## Boot Sequence
-
-1. **Start the Pi edge server**
+To locate the Raspberry Pi and establish the connection, we executed the following steps and commands:
+1. **Network Discovery:** Checked the local interface IP/subnet on the Laptop using:
+   ```powershell
+   ipconfig
+   ```
+2. **mDNS Resolution:** Pinged the Pi's hostname forcing IPv4 to discover and resolve its dynamic IP address on the current subnet:
+   ```powershell
+   ping -4 -n 1 raspberrypi.local
+   ```
+   *This resolved the Pi's active IP to `10.253.13.25`.*
+3. **SSH Connection:** Logged into the Pi using standard SSH (substituting credentials from `.env`):
    ```bash
-   cd ~/edge-ai/pi
-   source .venv/bin/activate
-   python3 edge_server.py --config config.json
+   ssh <USERNAME>@<IP_ADDRESS>
    ```
-   This starts the ingest WebSocket and dashboard broadcast service, plus YOLOv8 inference.
 
-2. **Start the laptop sensor stream**
-   ```powershell
-   cd "i:\My Drive\SIP\Prototype"
-   .\.venv\Scripts\Activate.ps1
-   python laptop\stream_client.py --pi-host <PI_IP_ADDRESS>
-   ```
-   This begins webcam capture and streams frames to the Pi ingest endpoint.
+### 2. Configuration Adjustments
+- Updated the root [.env](.env) file to reference the Pi's dynamic IP (`10.253.13.25`).
+- Configured the Next.js control room dashboard in [dashboard/.env.local](dashboard/.env.local) to point to the Pi edge server:
+  ```env
+  NEXT_PUBLIC_PI_WS_URL=ws://10.253.13.25:8766
+  ```
 
-3. **Launch the dashboard**
-   ```powershell
-   cd "i:\My Drive\SIP\Prototype\dashboard"
-   npm run dev
-   ```
-   Open http://localhost:3000 to view the municipal control room UI.
+### 3. Verification & Inference Tests
+- **Environment Diagnostics:** Verified that the Pi's Python virtual environment has all necessary ML and web stack packages (`ultralytics` YOLOv8, `cv2`, `websockets`, `numpy`).
+- **Telemetry Verification:** Successfully launched the edge server on the Pi and streamed webcam frames from the laptop. The Pi console logs confirmed frame decoding and YOLOv8 threat classification working in real-time, correctly identifying a `person` (user) and outputting simulated deterrence logs.
+
+---
+
+## 🚀 Execution Guide
+
+Follow these steps to get all services up and running.
+
+### Step 1: Start the Raspberry Pi Edge Server
+On the **Raspberry Pi 5** (via SSH or serial console):
+```bash
+# Start the server in the background
+nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
+
+# Monitor logs
+tail -f ~/edge-ai/pi/server.log
+```
+The server will start listening on port `8765` for image ingestion and port `8766` for dashboard broadcasting.
+
+### Step 2: Start the Next.js Dashboard
+In a PowerShell window on your **Laptop**:
+```powershell
+cd c:\SIP-Prototype\Prototype\dashboard
+npm run dev
+```
+Open **[http://localhost:3000](http://localhost:3000)** in Chrome/Firefox. Grant mic permissions when prompted to enable local audio visualization.
+
+### Step 3: Start the Laptop Camera Stream Client
+In a separate PowerShell window on your **Laptop**:
+```powershell
+cd c:\SIP-Prototype\Prototype
+.\.venv\Scripts\python.exe laptop\stream_client.py --pi-host 10.253.13.25
+```
+This begins capturing frames from your laptop's camera and streaming them to the Pi edge server. The Pi log will output `INFO Deterrence simulated for person`.
+
+---
+
+## 🛑 Stopping/Ending the System
+
+To cleanly terminate all running background processes:
+
+### 1. Stop the Laptop Stream Client
+- In the active PowerShell terminal running `stream_client.py`, press `Ctrl + C`.
+- Or run this command from a new PowerShell prompt:
+  ```powershell
+  Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%stream_client%'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+  ```
+
+### 2. Stop the Dashboard Server
+- In the active PowerShell terminal running `npm run dev`, press `Ctrl + C`.
+- Or release port `3000` via PowerShell:
+  ```powershell
+  Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
+  ```
+
+### 3. Stop the Raspberry Pi Edge Server
+On the **Raspberry Pi 5** (via SSH):
+```bash
+pkill -f edge_server.py
+```
+To verify it terminated successfully, run `ps aux | grep edge_server.py` (which should return no processes).
