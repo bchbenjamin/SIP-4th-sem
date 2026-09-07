@@ -41,7 +41,7 @@ DEFAULT_TIER1 = {
     "zebra",
     "giraffe",
 }
-DEFAULT_TIER2 = {"car", "motorcycle", "bus", "truck", "train"}
+DEFAULT_TIER2 = {"car", "motorcycle", "bus", "truck", "train", "knife", "gun", "weapon"}
 
 
 @dataclass
@@ -93,6 +93,8 @@ class DeterrenceController:
     def trigger(self, labels: List[str]) -> str:
         if self.mode == "siren" and self.siren_file and os.path.exists(self.siren_file):
             logging.info("Deterrence siren triggered for %s", ", ".join(labels))
+            # Execute actual audio playback on Raspberry Pi
+            os.system(f"aplay {self.siren_file} &")
         elif self.mode == "led":
             logging.info("Deterrence LED triggered for %s", ", ".join(labels))
         else:
@@ -192,6 +194,17 @@ class EdgeCore:
         self.frame_counter = 0
         self.fps_window_start = time.time()
         self.current_fps = 0
+
+    async def handler(self, websocket):
+        """Route connections by path: /ingest for sensor data, / for dashboard."""
+        path = "/"
+        if hasattr(websocket, "request") and hasattr(websocket.request, "path"):
+            path = websocket.request.path
+
+        if path == "/ingest":
+            await self.ingest_handler(websocket)
+        else:
+            await self.dashboard_handler(websocket)
 
     async def ingest_handler(self, websocket):
         async for message in websocket:
@@ -344,30 +357,25 @@ async def run_servers(args: argparse.Namespace) -> None:
     core = EdgeCore(policy, detector)
 
     async with websockets.serve(
-        core.ingest_handler,
+        core.handler,
         args.host,
-        args.ingest_port,
-        max_size=2**24,
-        ping_interval=20,
-        ping_timeout=20,
-    ), websockets.serve(
-        core.dashboard_handler,
-        args.host,
-        args.dashboard_port,
+        args.port,
         max_size=2**24,
         ping_interval=20,
         ping_timeout=20,
     ):
-        logging.info("Ingest server on ws://%s:%s/ingest", args.host, args.ingest_port)
-        logging.info("Dashboard server on ws://%s:%s", args.host, args.dashboard_port)
+        logging.info(
+            "Edge server on ws://%s:%s  (ingest: /ingest  dashboard: /)",
+            args.host,
+            args.port,
+        )
         await core.processor_loop()
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Edge inference and broadcast server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
-    parser.add_argument("--ingest-port", type=int, default=8765, help="WebSocket port for ingest")
-    parser.add_argument("--dashboard-port", type=int, default=8766, help="WebSocket port for dashboard")
+    parser.add_argument("--port", type=int, default=8766, help="WebSocket port (routes /ingest and / on same port)")
     parser.add_argument("--model", default="yolov8n.pt", help="YOLOv8 model path")
     parser.add_argument("--imgsz", type=int, default=640, help="YOLO inference size")
     parser.add_argument("--conf", type=float, default=0.4, help="YOLO confidence threshold")
