@@ -55,8 +55,58 @@ def get_latest_results():
     return rows[-1], len(rows)
 
 
+def get_live_progress():
+    """Parse train.log for live epoch/batch progress."""
+    log_path = os.path.expanduser("~/edge-ai/logs/train.log")
+    if not os.path.exists(log_path):
+        return ""
+    try:
+        with open(log_path, 'r') as f:
+            lines = f.readlines()[-50:]
+        
+        epoch_str = 'Unknown'
+        batch_str = 'Unknown'
+        phase = 'Training'
+        
+        for line in reversed(lines):
+            line = line.strip()
+            if '%|' in line and '/' in line and '[' in line:
+                if 'Class' in line and 'Images' in line:
+                    phase = 'Validating'
+                parts = line.split('|')
+                if len(parts) >= 3:
+                    pct_part = parts[0]
+                    if ':' in pct_part:
+                        pct_part = pct_part.split(':')[-1]
+                    pct = pct_part.strip()
+                    
+                    rest = parts[2].strip().split('[')
+                    if len(rest) >= 2:
+                        batch_prog = rest[0].strip()
+                        if '<' in rest[1] and ',' in rest[1]:
+                            eta = rest[1].split('<')[1].split(',')[0]
+                        else:
+                            eta = '?'
+                        batch_str = f"{pct} ({batch_prog}) ETA: {eta}"
+                        break
+                        
+        for line in reversed(lines):
+            line = line.strip()
+            if len(line.split()) > 0 and '/' in line.split()[0] and 'G' in line:
+                parts = line.split()
+                if '/' in parts[0]:
+                    epoch_str = parts[0]
+                    break
+                    
+        if epoch_str != 'Unknown':
+            return f"🏃 <b>Live Action:</b> {phase} Epoch {epoch_str}\n⏳ <b>Batch:</b> {batch_str}\n━━━━━━━━━━━━━━━━━━━\n"
+    except Exception:
+        pass
+    return ""
+
+
 def format_progress_message():
-    """Create a formatted progress message from results.csv."""
+    """Create a formatted progress message from results.csv and train.log."""
     result = get_latest_results()
     if result is None:
         return "⏳ Training has not started yet or no results found."
@@ -76,12 +126,14 @@ def format_progress_message():
     recall = row.get("metrics/recall(B)", "?")
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    live_progress = get_live_progress()
 
     msg = (
         f"📊 <b>Training Progress Update</b>\n"
         f"🕐 {now}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"📈 Epoch: <b>{epoch}</b> (of {total_epochs} so far)\n"
+        f"{live_progress}"
+        f"📈 Last Completed Epoch: <b>{epoch}</b> (of {total_epochs} total)\n"
         f"\n"
         f"<b>Train Loss:</b>\n"
         f"  📦 Box: {train_box}\n"
