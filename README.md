@@ -18,6 +18,15 @@ flowchart LR
 
 ---
 
+## 🚀 Autonomous Edge Training & Notifications
+
+We have recently deployed a fully autonomous training pipeline directly on the Raspberry Pi:
+- **Systemd Autostart Service:** The `weapon-training.service` ensures that YOLOv8 training starts automatically on boot and recovers gracefully from crashes or OOM errors by adjusting parameters (batch size, workers).
+- **Automated Dataset Ingestion:** `download_and_merge.py` pulls unified datasets directly from Kaggle and Roboflow to continually improve the model.
+- **Telegram Bot Integration:** Progress is reported live to a Telegram channel. The bot provides real-time epoch progression, system load averages, and network metrics, making it easy to monitor headless training.
+
+---
+
 ## 🛠️ Integration Walkthrough
 
 We have successfully migrated the prototype code back to the **`main` branch** (following the recovery of the Raspberry Pi 5 hardware) and established active communication between the laptop and the Pi edge core.

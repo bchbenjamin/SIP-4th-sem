@@ -41,6 +41,8 @@ def download_kaggle_datasets():
     kaggle_datasets = [
         "snehilsanyal/weapon-detection-test",
         "simuletic/cctv-knife-detection-dataset",
+        "shashankrapolu/human-action-recognition-dataset",
+        "abduulrahmankhalid/real-time-violence-detection-mobilenet-bi-lstm",
     ]
 
     downloaded = []

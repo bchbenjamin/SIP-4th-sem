@@ -87,28 +87,60 @@ def train():
     try:
         model.train(
             data=data_yaml,
-            epochs=50,
+            epochs=150,
             batch=4,            # Doubled from 2 — uses more RAM
             imgsz=416,          # Larger images for better accuracy
             device="cpu",
-            workers=4,          # Use ALL 4 CPU cores for data loading
-            save_period=5,      # Checkpoint every 5 epochs
+            workers=0,          # Reduced from 4 for ARM CPU (0 to prevent crash)
+            save_period=5,      
             project="runs/detect",
             name="train",
             exist_ok=True,
             resume=resume,
-            patience=0,        # Don't early-stop — train all epochs
-            cache=True,        # Cache images in RAM for speed
+            patience=0,        
+            cache=False,        # Disable cache to prevent OOM
             plots=True,        # Generate results.png
             verbose=True,
         )
         notify("complete")
         print("Training complete!")
 
-    except RuntimeError as e:
-        if "out of memory" in str(e).lower() or "oom" in str(e).lower():
-            print(f"OOM with batch=4/imgsz=416, falling back to batch=2/imgsz=320...")
-            notify("crash", f"OOM — retrying with smaller batch.\n{str(e)[:200]}")
+    except AssertionError as e:
+        if "nothing to resume" in str(e):
+            print("Previous training run reached its epoch limit.")
+            print("Backing up checkpoint and starting a new training run to continue training...")
+            notify("start", "Starting a new training run from the finished checkpoint to reach higher epochs.")
+            
+            import shutil
+            backup_ckpt = os.path.join(HOME, "last_backup.pt")
+            shutil.copy(CHECKPOINT, backup_ckpt)
+            
+            model = YOLO(backup_ckpt)
+            model.train(
+                data=data_yaml,
+                epochs=150,
+                batch=4,
+                imgsz=416,
+                device="cpu",
+                workers=0,
+                save_period=5,
+                project="runs/detect",
+                name="train",
+                exist_ok=True,
+                resume=False,
+                patience=0,
+                cache=False,
+                plots=True,
+                verbose=True,
+            )
+            notify("complete", "New extended training run complete!")
+            return
+        raise
+
+    except (RuntimeError, MemoryError, OSError) as e:
+        if "out of memory" in str(e).lower() or "oom" in str(e).lower() or isinstance(e, (MemoryError, OSError)):
+            print(f"OOM or MemoryError with initial settings, falling back to batch=2/imgsz=320/workers=0...")
+            notify("crash", f"OOM/MemoryError — retrying with smaller batch.\n{str(e)[:200]}")
 
             # Retry with smaller settings
             if os.path.exists(CHECKPOINT):
@@ -118,24 +150,57 @@ def train():
                 model = YOLO("yolov8n.pt")
                 resume = False
 
-            model.train(
-                data=data_yaml,
-                epochs=50,
-                batch=2,
-                imgsz=320,
-                device="cpu",
-                workers=4,
-                save_period=5,
-                project="runs/detect",
-                name="train",
-                exist_ok=True,
-                resume=resume,
-                patience=0,
-                cache=False,
-                plots=True,
-                verbose=True,
-            )
-            notify("complete")
+            try:
+                model.train(
+                    data=data_yaml,
+                    epochs=150,
+                    batch=2,
+                    imgsz=320,
+                    device="cpu",
+                    workers=0,
+                    save_period=5,
+                    project="runs/detect",
+                    name="train",
+                    exist_ok=True,
+                    resume=resume,
+                    patience=0,
+                    cache=False,
+                    plots=True,
+                    verbose=True,
+                )
+                notify("complete")
+            except AssertionError as e:
+                if "nothing to resume" in str(e):
+                    print("Previous training run reached its epoch limit.")
+                    print("Backing up checkpoint and starting a new fallback training run...")
+                    notify("start", "Fallback: Starting a new training run from the finished checkpoint.")
+                    
+                    import shutil
+                    backup_ckpt = os.path.join(HOME, "last_backup.pt")
+                    if os.path.exists(CHECKPOINT):
+                        shutil.copy(CHECKPOINT, backup_ckpt)
+                        model = YOLO(backup_ckpt)
+                    
+                    model.train(
+                        data=data_yaml,
+                        epochs=150,
+                        batch=2,
+                        imgsz=320,
+                        device="cpu",
+                        workers=0,
+                        save_period=5,
+                        project="runs/detect",
+                        name="train",
+                        exist_ok=True,
+                        resume=False,
+                        patience=0,
+                        cache=False,
+                        plots=True,
+                        verbose=True,
+                    )
+                    notify("complete", "New fallback training run complete!")
+                    return
+                raise
         else:
             raise
 
