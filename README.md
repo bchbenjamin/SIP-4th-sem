@@ -1,138 +1,104 @@
 # AI-Powered Street Safety Device Network
 
-This repository contains the prototype implementation of the **AI-Powered Street Safety Device Network** (ASIP ASIP_127 / 24UTAI13), developed for Atria Institute of Technology, Bengaluru.
+Prototype implementation of the **AI-Powered Street Safety Device Network** (ASIP 24UTAI13), developed at Atria Institute of Technology, Bengaluru.
 
-The network integrates a Laptop (acting as a visual sensor node & browser dashboard) with a Raspberry Pi 5 (acting as the Edge Compute Core running YOLOv8 detection and threat tiering).
+The system connects a Laptop (visual sensor node + browser dashboard) to a Raspberry Pi 5 (Edge Compute Core running YOLOv8 threat detection and two-tier response logic).
 
 ---
 
-## 📐 Architecture Overview
+## Architecture Overview
 
-```mermaid
-flowchart LR
-  L[Laptop Sensor Node\nWebcam/Mic Capture] -->|WebSocket JPEG Frames| P[Pi 5 Edge Core\nYOLOv8 + Tiering]
-  P -->|Annotated Frames + JSON Logs\nWebSocket Broadcast| D[Municipal Control Room Dashboard]
-  P -->|Tier 1 Deterrence\nSiren or LED| T1[Local Deterrence]
-  P -->|Tier 2 Alerts\nSecure API POST| T2[Police/Emergency Services]
+```
+Laptop Sensor Node          →   Pi 5 Edge Core              →   Outputs
+Webcam/Mic Capture              YOLOv8 + Threat Tiering
+(stream_client.py)              (edge_server.py)
+WebSocket JPEG frames    →      Annotated frames + JSON   →   Dashboard (port 8766)
+                                                           →   Tier 1: Siren/LED deterrence
+                                                           →   Tier 2: Police/EMS alert API
 ```
 
 ---
 
-## 🚀 Autonomous Edge Training & Notifications
+## Quick Start
 
-We have recently deployed a fully autonomous training pipeline directly on the Raspberry Pi:
-- **Systemd Autostart Service:** The `weapon-training.service` ensures that YOLOv8 training starts automatically on boot and recovers gracefully from crashes or OOM errors by adjusting parameters (batch size, workers).
-- **Automated Dataset Ingestion:** `download_and_merge.py` pulls unified datasets directly from Kaggle and Roboflow to continually improve the model.
-- **Telegram Bot Integration:** Progress is reported live to a Telegram channel. The bot provides real-time epoch progression, system load averages, and network metrics, making it easy to monitor headless training.
+See **[RUN_GUIDE.md](RUN_GUIDE.md)** for the exact step-by-step commands to start and stop the system.
 
----
+**Three components run in order:**
+1. Raspberry Pi edge server (`edge_server.py`) — via SSH
+2. Next.js dashboard (`npm run dev`) — on laptop
+3. Laptop camera stream client (`stream_client.py`) — on laptop
 
-## 🛠️ Integration Walkthrough
-
-We have successfully migrated the prototype code back to the **`main` branch** (following the recovery of the Raspberry Pi 5 hardware) and established active communication between the laptop and the Pi edge core.
-
-### 1. Network & Connection Discovery
-- **Active Subnet:** The laptop and Raspberry Pi are connected to the same Wi-Fi network under the `10.253.13.x` subnet.
-- **Pi Hostname:** `raspberrypi.local`
-- **Pi IP Address:** `10.253.13.25`
-- **Credentials Configured:** Located in the gitignored [.env](.env) file:
-  - `IP_ADDRESS=<Raspberry_Pi_IP>` (e.g. `10.253.13.25`)
-  - `USERNAME=<Pi_Username>`
-  - `PASSWORD=<Pi_Password>`
-
-To locate the Raspberry Pi and establish the connection, we executed the following steps and commands:
-1. **Network Discovery:** Checked the local interface IP/subnet on the Laptop using:
-   ```powershell
-   ipconfig
-   ```
-2. **mDNS Resolution:** Pinged the Pi's hostname forcing IPv4 to discover and resolve its dynamic IP address on the current subnet:
-   ```powershell
-   ping -4 -n 1 raspberrypi.local
-   ```
-   *This resolved the Pi's active IP to `10.253.13.25`.*
-3. **SSH Connection:** Logged into the Pi using standard SSH (substituting credentials from `.env`):
-   ```bash
-   ssh <USERNAME>@<IP_ADDRESS>
-   ```
-
-### 2. Configuration Adjustments
-- Updated the root [.env](.env) file to reference the Pi's dynamic IP (`10.253.13.25`).
-- Configured the Next.js control room dashboard in [dashboard/.env.local](dashboard/.env.local) to point to the Pi edge server:
-  ```env
-  NEXT_PUBLIC_PI_WS_URL=ws://10.253.13.25:8766
-  ```
-
-### 3. Verification & Inference Tests
-- **Environment Diagnostics:** Verified that the Pi's Python virtual environment has all necessary ML and web stack packages (`ultralytics` YOLOv8, `cv2`, `websockets`, `numpy`).
-- **Telemetry Verification:** Successfully launched the edge server on the Pi and streamed webcam frames from the laptop. The Pi console logs confirmed frame decoding and YOLOv8 threat classification working in real-time, correctly identifying a `person` (user) and outputting simulated deterrence logs.
+Network config is in `.env` — update `IP_ADDRESS` if the Pi's DHCP address changes.
 
 ---
 
-## 🚀 Execution Guide
+## Autonomous Edge Training
 
-Follow these steps to get all services up and running.
+The Pi runs a 24/7 autonomous YOLOv8 training pipeline independent of this laptop:
 
-### Step 1: Start the Raspberry Pi Edge Server
+- **Systemd autostart:** `weapon-training.service` starts training on every boot and auto-recovers from crashes
+- **Dataset:** ~9,419 images unified from Roboflow Gun+Knife Detection, Kaggle Weapon Detection Test, and CCTV Knife Detection datasets
+- **Telegram bot:** Remote monitoring and image inference via Telegram — message the bot for a live progress update or send an image for weapon detection
+- **Script:** `pi/train_autonomous.py` — handles checkpoint resumption, OOM fallback, and continuous 150-epoch runs
 
-> [!IMPORTANT]
-> Do NOT run the `nohup` or `tail` commands directly in your Laptop's Windows PowerShell terminal. They are Linux commands and must be run inside the Raspberry Pi SSH terminal session.
-
-1. **Connect to the Raspberry Pi over SSH:**
-   Open a PowerShell window on your **Laptop** and run:
-   ```powershell
-   ssh $USERNAME$@$IP_ADDRESS$
-   ```
-   *(Enter $password$ when prompted)*
-
-2. **Run the edge server (inside the Raspberry Pi SSH terminal session):**
-   ```bash
-   # Start the server in the background
-   nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
-
-   # Monitor logs
-   tail -f ~/edge-ai/pi/server.log
-   ```
-The server will start listening on port `8765` for image ingestion and port `8766` for dashboard broadcasting.
-
-### Step 2: Start the Next.js Dashboard
-In a PowerShell window on your **Laptop**:
-```powershell
-cd c:\SIP-Prototype\Prototype\dashboard
-npm run dev
-```
-Open **[http://localhost:3000](http://localhost:3000)** in Chrome/Firefox. Grant mic permissions when prompted to enable local audio visualization.
-
-### Step 3: Start the Laptop Camera Stream Client
-In a separate PowerShell window on your **Laptop**:
-```powershell
-cd c:\SIP-Prototype\Prototype
-.\.venv\Scripts\python.exe laptop\stream_client.py --pi-host 10.253.13.25
-```
-This begins capturing frames from your laptop's camera and streaming them to the Pi edge server. The Pi log will output `INFO Deterrence simulated for person`.
+See **[CONTEXT.md](CONTEXT/CONTEXT.md)** Sections 16–18 for full details on the training pipeline, batch processing, and Telegram integration.
 
 ---
 
-## 🛑 Stopping/Ending the System
+## Repository Structure
 
-To cleanly terminate all running background processes:
-
-### 1. Stop the Laptop Stream Client
-- In the active PowerShell terminal running `stream_client.py`, press `Ctrl + C`.
-- Or run this command from a new PowerShell prompt:
-  ```powershell
-  Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%stream_client%'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-  ```
-
-### 2. Stop the Dashboard Server
-- In the active PowerShell terminal running `npm run dev`, press `Ctrl + C`.
-- Or release port `3000` via PowerShell:
-  ```powershell
-  Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
-  ```
-
-### 3. Stop the Raspberry Pi Edge Server
-On the **Raspberry Pi 5** (via SSH):
-```bash
-pkill -f edge_server.py
 ```
-To verify it terminated successfully, run `ps aux | grep edge_server.py` (which should return no processes).
+Prototype/
+├── pi/                     # Raspberry Pi scripts (edge server, training, Telegram bot)
+│   ├── edge_server.py      # Main WebSocket inference server
+│   ├── train_autonomous.py # Autonomous YOLOv8 training with crash recovery
+│   ├── download_and_merge.py # Dataset downloader and merger
+│   ├── telegram_bot.py     # Interactive Telegram bot (status + image inference)
+│   ├── telegram_notify.py  # Automated progress notifications
+│   ├── app_batch.py        # Batch video processing (frame-by-frame detection)
+│   ├── sound_event_batch.py# Batch audio processing (scream detection)
+│   └── config.json / requirements.txt
+├── laptop/
+│   └── stream_client.py    # Webcam capture → WebSocket stream to Pi
+├── dashboard/              # Next.js control room dashboard
+├── Samples/                # Dataset samples and research paper figure candidates
+│   ├── weapon_samples/     # Raw weapon dataset images
+│   ├── fig3_candidates/    # Video detection screenshots (research paper Fig. 3)
+│   ├── fig4/               # Training curve (research paper Fig. 4)
+│   ├── paper_candidates/   # Best images selected for paper figures
+│   └── weapon-detection-1/ # Downloaded Roboflow weapon dataset
+├── CONTEXT/
+│   ├── CONTEXT.md          # Master project reference (single source of truth)
+│   └── Automating SIP Prototype Batch Processing.md  # Raw session log
+├── RUN_GUIDE.md            # Start/stop commands (authoritative)
+├── RASPBERRY_PI_SETUP.md   # First-time Pi setup guide
+└── THREAT_TESTING_GUIDE.md # How to demo threat detection
+```
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [CONTEXT.md](CONTEXT/CONTEXT.md) | Master reference: full system design, datasets, training pipeline, Telegram bot, research paper status, team details |
+| [RUN_GUIDE.md](RUN_GUIDE.md) | How to start and stop the live demo system |
+| [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md) | First-time Pi hardware and OS setup |
+| [THREAT_TESTING_GUIDE.md](THREAT_TESTING_GUIDE.md) | How to test and demonstrate threat detection |
+
+---
+
+## Network Configuration
+
+The laptop and Pi must be on the same subnet. Credentials and the Pi IP are stored in `.env` (gitignored):
+
+```env
+IP_ADDRESS=<raspberry_pi_ip>
+USERNAME=<pi_username>
+PASSWORD=<pi_password>
+```
+
+Dashboard WebSocket config: `dashboard/.env.local`
+```env
+NEXT_PUBLIC_PI_WS_URL=ws://<PI_IP>:8766
+```

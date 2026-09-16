@@ -1,105 +1,140 @@
-# Street Safety Prototype: Start & Stop Execution Guide
+# Street Safety Prototype: Run Guide
 
-This document lists the exact commands to start, monitor, and stop the components of the AI-Powered Street Safety Device Network.
-
----
-
-## 📋 Network Configuration Reference
-- **Raspberry Pi 5 IP:** `10.253.13.25` (Port `8765` for Ingest, Port `8766` for Dashboard feed)
-- **Laptop Dashboard Local Address:** `http://localhost:3000`
+Authoritative start/stop reference for the AI-Powered Street Safety Device Network prototype.
 
 ---
 
-## 🚀 Starting the System
+## Network Reference
 
-To run the full prototype demo, start the components in the following order:
+| Component | Value |
+|---|---|
+| Raspberry Pi IP | Stored in `.env` → `IP_ADDRESS` (typically `10.253.13.25` on campus subnet) |
+| Pi edge server ingest port | `8765` |
+| Pi dashboard broadcast port | `8766` |
+| Laptop dashboard | `http://localhost:3000` |
+
+To locate the Pi on a new network: `ping -4 -n 1 raspberrypi.local` (Windows) or `ping raspberrypi.local` (Linux/Mac).
+
+---
+
+## Starting the System
+
+Start in this order. All three must be running for the full demo.
 
 ### 1. Start the Raspberry Pi Edge Server
 
-> [!IMPORTANT]
-> Do NOT run the `nohup` or `tail` commands directly in your Laptop's Windows PowerShell terminal. They are Linux commands and must be run inside the Raspberry Pi SSH terminal session.
+SSH into the Pi from your laptop:
 
-1. **Connect to the Raspberry Pi over SSH:**
-   Open a PowerShell window on your **Laptop** and run:
-   ```powershell
-   ssh $USERNAME$@$IP_ADDRESS$
-   ```
-   *(Enter $password$ when prompted)*
+```bash
+# Linux/Mac
+ssh $USERNAME@$IP_ADDRESS
 
-2. **Run the edge server (inside the SSH session):**
-   * **Command to run in the background (using nohup):**
-     ```bash
-     nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py --config ~/edge-ai/pi/config.json --model ~/edge-ai/pi/yolov8n.pt > ~/edge-ai/pi/server.log 2>&1 &
-     ```
-   * **Command to verify it is running:**
-     ```bash
-     ps aux | grep edge_server.py
-     ```
-   * **Command to watch the logs in real-time:**
-     ```bash
-     tail -f ~/edge-ai/pi/server.log
-     ```
+# Windows PowerShell
+ssh $env:USERNAME@$env:IP_ADDRESS
+```
 
----
+Once connected, start the edge server in the background:
+
+```bash
+nohup ~/edge-ai/pi/.venv/bin/python3 ~/edge-ai/pi/edge_server.py \
+    --config ~/edge-ai/pi/config.json \
+    --model ~/edge-ai/pi/yolov8n.pt \
+    > ~/edge-ai/pi/server.log 2>&1 &
+```
+
+Monitor the log:
+```bash
+tail -f ~/edge-ai/pi/server.log
+```
+
+Verify it's running:
+```bash
+ps aux | grep edge_server.py
+```
 
 ### 2. Start the Next.js Dashboard
-Run this command in a PowerShell terminal on your **Laptop** to start the web-based Control Room dashboard:
 
-* **Command:**
-  ```powershell
-  cd c:\SIP-Prototype\Prototype\dashboard
-  npm run dev
-  ```
-* Once ready, open **[http://localhost:3000](http://localhost:3000)** in Chrome/Firefox and allow microphone permissions.
+On your laptop:
 
----
+```bash
+cd Prototype/dashboard
+npm run dev
+```
+
+Open **http://localhost:3000** in Chrome or Firefox. Allow microphone permissions when prompted.
 
 ### 3. Start the Laptop Camera Stream Client
-Run this command in a separate PowerShell terminal on your **Laptop** to start capturing and streaming your webcam frames to the Raspberry Pi:
 
-* **Command:**
-  ```powershell
-  cd c:\SIP-Prototype\Prototype
-  .\.venv\Scripts\python.exe laptop\stream_client.py --pi-host 10.253.13.25
-  ```
-* The Pi server console logs will show `connection open` and begin printing YOLOv8 detections (e.g. `INFO Deterrence simulated for person`).
+In a separate terminal on your laptop:
 
----
+```bash
+cd Prototype
+.venv/Scripts/python.exe laptop/stream_client.py --pi-host $PI_IP    # Windows
+# or
+.venv/bin/python3 laptop/stream_client.py --pi-host $PI_IP           # Linux/Mac
+```
 
-## 🛑 Stopping/Ending the System
-
-When you are finished with the demo, follow these steps to stop all running processes cleanly:
-
-### 1. Stop the Laptop Stream Client
-* **If running in your active terminal:**
-  Press `Ctrl + C` in the PowerShell window running `stream_client.py`.
-* **If running in the background:**
-  Run this PowerShell command to find and stop the Python stream client:
-  ```powershell
-  Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%stream_client%'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-  ```
+The Pi log will show `connection open` and begin printing YOLOv8 detections.
 
 ---
 
-### 2. Stop the Dashboard Server
-* **If running in your active terminal:**
-  Press `Ctrl + C` in the PowerShell window running `npm run dev`.
-* **If running in the background:**
-  Run this PowerShell command to stop whichever process is listening on the dashboard port (`3000`):
-  ```powershell
-  Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
-  ```
+## Stopping the System
+
+### Stop the Laptop Stream Client
+Press `Ctrl+C` in the terminal running `stream_client.py`.
+
+Or kill it by process:
+
+```powershell
+# Windows
+Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%stream_client%'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+### Stop the Dashboard
+Press `Ctrl+C` in the terminal running `npm run dev`.
+
+Or kill by port:
+
+```powershell
+# Windows
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -Force
+```
+
+### Stop the Raspberry Pi Edge Server
+
+Via SSH on the Pi:
+
+```bash
+pkill -f edge_server.py
+```
+
+Verify: `ps aux | grep edge_server.py` should return nothing.
 
 ---
 
-### 3. Stop the Raspberry Pi Edge Server
-Run this command on the **Raspberry Pi** (via SSH) to terminate the edge core:
+## Autonomous Training (Pi-side, runs independently)
 
-* **Command:**
-  ```bash
-  pkill -f edge_server.py
-  ```
-* **Verification (Should return no active process lines except your grep):**
-  ```bash
-  ps aux | grep edge_server.py
-  ```
+The Pi's training pipeline runs completely independently from the laptop demo system. It is managed by systemd and does not need to be started or stopped manually.
+
+| Action | Command (run on Pi via SSH) |
+|---|---|
+| Check training status | `sudo systemctl status weapon-training.service` |
+| Check Telegram bot status | `sudo systemctl status weapon-bot.service` |
+| View training log | `tail -f ~/edge-ai/logs/train.log` |
+| Check current epoch | `tail -n 5 ~/runs/detect/train/results.csv` |
+| Restart training | `sudo systemctl restart weapon-training.service` |
+| Stop training | `sudo systemctl stop weapon-training.service` |
+
+Training autostarts on every boot. Checkpoints are saved every 5 epochs to `~/runs/detect/train/weights/`.
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Can't find Pi on network | Run `ping raspberrypi.local` or check router DHCP table; update `.env` with new IP |
+| `npm run dev` fails | Ensure you're in `Prototype/dashboard/`; run `npm install` if node_modules is missing |
+| Stream client can't connect | Verify edge server is running on Pi; check `IP_ADDRESS` in `.env` |
+| Pi SSH refused | Pi may be rebooting; wait 60s and retry |
+| Dashboard shows no feed | Check `dashboard/.env.local` has correct `NEXT_PUBLIC_PI_WS_URL` |
